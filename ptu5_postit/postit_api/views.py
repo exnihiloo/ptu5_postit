@@ -4,8 +4,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from . import models, serializers
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth import get_user_model
 
-
+User = get_user_model()
 
 # def home(request):
 #     return render(request, 'postit_api/index.html')
@@ -101,3 +102,8 @@ class PostLikeCreate(generics.CreateAPIView, mixins.DestroyModelMixin):
         else:
             raise ValidationError(_("You didn't like this post to begin with."))
 
+
+class UserCreate(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = serializers.UserSerializer
+    permission_classes = [permissions.AllowAny]
