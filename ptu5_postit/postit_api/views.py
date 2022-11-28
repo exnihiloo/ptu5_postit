@@ -1,10 +1,14 @@
 from django.shortcuts import render
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, mixins, status
 from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 from . import models, serializers
 from django.utils.translation import gettext_lazy as _
 
 
+
+# def home(request):
+#     return render(request, 'postit_api/index.html')
 
 class PostList(generics.ListCreateAPIView):
     queryset = models.Post.objects.all()
@@ -16,12 +20,17 @@ class PostList(generics.ListCreateAPIView):
 
 
 class CommentList(generics.ListCreateAPIView):
-    queryset = models.Comment.objects.all()
+    # queryset = models.Comment.objects.all()
     serializer_class = serializers.CommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        post = models.Post.objects.get(pk=self.kwargs['pk'])
+        serializer.save(user=self.request.user, post=post)
+
+    def get_queryset(self):
+        post = models.Post.objects.get(pk=self.kwargs['pk'])
+        return models.Comment.objects.filter(post=post)
 
 
 class PostDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -66,4 +75,29 @@ class CommentDetail(generics.RetrieveUpdateDestroyAPIView):
             return self.update(request, *args, **kwargs)
         else:
             raise ValidationError(_("You can't update comments that are not yours."))
+
+
+class PostLikeCreate(generics.CreateAPIView, mixins.DestroyModelMixin):
+    serializer_class = serializers.PostLikeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        post = models.Post.objects.get(pk = self.kwargs["pk"])
+        return models.PostLike.objects.filter(user = user, post = post)
+
+
+    def perform_create(self, serializer):
+        if self.get_queryset().exists():
+            raise ValidationError(_('You already left like on this post!'))
+        user = self.request.user
+        post = models.Post.objects.get(pk = self.kwargs["pk"])
+        serializer.save(user = user, post = post)
+
+    def delete(self, request, *args, **kwargs):
+        if self.get_queryset().exists():
+            self.get_queryset().delete()
+            return Response(status = status.HTTP_204_NO_CONTENT)
+        else:
+            raise ValidationError(_("You didn't like this post to begin with."))
 
